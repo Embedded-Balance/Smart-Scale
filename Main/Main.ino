@@ -83,15 +83,24 @@ void setup() {
 }
 
 void loop() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Put on Scale And");
+  lcd.setCursor(0, 1);
+  lcd.print("Enter its Title");
+
   if (show_Weighing_Results) {
     String objectTitle = getObjectTitle();
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(objectTitle);
+    lcd.setCursor(0, 1);
+    lcd.print("Weight: ");
 
     if (LOADCELL_HX711.is_ready()) {
       weight_In_g = LOADCELL_HX711.get_units(10);
 
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Weight: ");
       if (weight_In_g >= 1000) {
         weight_In_kg = weight_In_g / 1000.0;
 
