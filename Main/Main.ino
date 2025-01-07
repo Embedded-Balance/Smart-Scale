@@ -29,7 +29,8 @@ String getObjectTitle() {
   while (Serial.available() == 0) {
     delay(100);
   }
-  String title = Serial.readString().trim();
+  String title = Serial.readString();
+  title.trim();
   Serial.println("Object Title: " + title);
   return title;
 }
