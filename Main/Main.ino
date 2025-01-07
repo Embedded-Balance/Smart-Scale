@@ -24,6 +24,16 @@ Preferences preferences;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
+String getObjectTitle() {
+  Serial.println("\nEnter the title of the object to be weighed:");
+  while (Serial.available() == 0) {
+    delay(100);
+  }
+  String title = Serial.readString().trim();
+  Serial.println("Object Title: " + title);
+  return title;
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println();
@@ -72,7 +82,9 @@ void setup() {
 }
 
 void loop() {
-  if (show_Weighing_Results == true) {
+  if (show_Weighing_Results) {
+    String objectTitle = getObjectTitle();
+
     if (LOADCELL_HX711.is_ready()) {
       weight_In_g = LOADCELL_HX711.get_units(10);
 
@@ -98,7 +110,7 @@ void loop() {
 
         String jsonPayload = "{";
         jsonPayload += "\"data\": {";
-        jsonPayload += "\"title\": \"potato\",";
+        jsonPayload += "\"title\": \"" + objectTitle + "\",";
         jsonPayload += "\"weight\": \"" + sendingWeight + "\"";
         jsonPayload += "}}";
 
