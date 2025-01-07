@@ -1,90 +1,131 @@
-//>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> 01_Test_Load_Cell_Sensor_5kg_and_HX711
-//----------------------------------------Including the libraries.
 #include "HX711.h"
-#include <nvs_flash.h>
-//----------------------------------------
+#include <Preferences.h>
+#include <LiquidCrystal_I2C.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
 
-//----------------------------------------Defines the connected PIN between HX711 and ESP32.
 #define LOADCELL_DOUT_PIN 5
-#define LOADCELL_SCK_PIN  18
-//----------------------------------------
+#define LOADCELL_SCK_PIN 18
+#define weight_of_object_for_calibration 500
 
-// Initialize the HX711 library as LOADCELL_HX711.
+const char *ssid = "Void";
+const char *password = "Armin_11";
+
+long sensor_Reading_Results;
+float CALIBRATION_FACTOR;
+bool show_Weighing_Results = true;
+int weight_In_g;
+float weight_In_kg;
+int LOAD_CALIBRATION_FACTOR = 0;
+
 HX711 LOADCELL_HX711;
 
-//________________________________________________________________________________VOID SETUP()
-void setup() {
-  // put your setup code here, to run once:
+Preferences preferences;
 
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
   Serial.begin(115200);
   Serial.println();
-  delay(1000);
-
-  Serial.println("erase the NVS partition.");
-  nvs_flash_erase();  // erase the NVS partition and...
-  Serial.println("initialize the NVS partition.");
-  nvs_flash_init();   // initialize the NVS partition.
-  Serial.println("Finished.");
+  delay(2000);
 
   Serial.println("Setup...");
+  delay(1000);
+
+  preferences.begin("CF", false);
+  delay(100);
+
+  Serial.println();
+  Serial.println("Do not place any object or weight on the scale.");
   delay(1000);
 
   Serial.println();
   Serial.println("LOADCELL_HX711 begin.");
   LOADCELL_HX711.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-  delay(1000);
+  LOAD_CALIBRATION_FACTOR = preferences.getFloat("CFVal", 0);
+  delay(500);
+  LOADCELL_HX711.set_scale();
+  LOADCELL_HX711.tare();
+  LOADCELL_HX711.set_scale(LOAD_CALIBRATION_FACTOR);
+  delay(500);
 
   Serial.println();
-  if (LOADCELL_HX711.is_ready()) {
-    Serial.println("Do not place any object or weight on the scale.");
-    Serial.println("Please wait...");
-    for (byte i = 5; i > 0; i--) {
-      Serial.println(i);
-      delay(1000);
-    }
-    
-    LOADCELL_HX711.set_scale();    
-    Serial.println();
-    Serial.println("Set the scales...");
-    Serial.println("Please wait...");
+  Serial.print("CALIBRATION_FACTOR : ");
+  Serial.println(LOAD_CALIBRATION_FACTOR);
+  delay(2000);
+  Serial.println();
+
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
+
+  WiFi.begin(ssid, password);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    
-    LOADCELL_HX711.tare();  //--> Reset scale to 0.
-    Serial.println();
-    Serial.println("Please place objects or weights on the scales.");
-    for (byte i = 5; i > 0; i--) {
-      Serial.println(i);
-      delay(1000);
-    }
-  } else {
-    Serial.println("HX711 not found.");
+    Serial.print(".");
   }
+  Serial.println("\nConnected to WiFi");
 
-  Serial.println();
   Serial.println("Setup finish.");
   delay(1000);
-
-  Serial.println();
 }
-//________________________________________________________________________________
 
-//________________________________________________________________________________VOID LOOP()
 void loop() {
-  // put your main code here, to run repeatedly:
+  if (show_Weighing_Results == true) {
+    if (LOADCELL_HX711.is_ready()) {
+      weight_In_g = LOADCELL_HX711.get_units(10);
 
-  if (LOADCELL_HX711.is_ready()) {
-    // The value 10 in get_units(10) means getting the average value of 10 readings.
-    // For more details see in File -> Examples -> HX711 Arduino Library -> HX711_full_example
-    long reading = LOADCELL_HX711.get_units(10);
-    Serial.print("Sensor reading results : ");
-    Serial.println(reading);
-  } 
-  else {
-    Serial.println("HX711 not found.");
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Weight: ");
+      if (weight_In_g >= 1000) {
+        weight_In_kg = weight_In_g / 1000.0;
+
+        lcd.print(weight_In_kg, 3);
+        lcd.print(" Kg");
+      } else {
+        lcd.print(weight_In_g);
+        lcd.print(" g");
+      }
+
+      String sendingWeight = String(weight_In_g >= 1000 ? weight_In_kg : weight_In_g) + (weight_In_g >= 1000 ? " Kg" : " g");
+
+      if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+
+        String apiUrl = "https://api.apispreadsheets.com/data/b9UECbmzcyMRssfJ/";
+
+        String jsonPayload = "{";
+        jsonPayload += "\"data\": {";
+        jsonPayload += "\"title\": \"potato\",";
+        jsonPayload += "\"weight\": \"" + sendingWeight + "\"";
+        jsonPayload += "}}";
+
+        Serial.println("JSON Payload:");
+        Serial.println(jsonPayload);
+
+        http.begin(apiUrl);
+        http.addHeader("Content-Type", "application/json");
+
+        int httpResponseCode = http.POST(jsonPayload);
+
+        if (httpResponseCode > 0) {
+          String response = http.getString();
+          Serial.println("HTTP Response code: " + String(httpResponseCode));
+          Serial.println("Response: " + response);
+        } else {
+          Serial.println("Error in sending POST: " + String(httpResponseCode));
+        }
+
+        http.end();
+      } else {
+        Serial.println("WiFi Disconnected");
+      }
+    } else {
+      Serial.println("HX711 not found.");
+    }
   }
+
   delay(1000);
 }
-//________________________________________________________________________________
-//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
-
